@@ -1,13 +1,21 @@
 [project]
 name = "robodraw"
 description = "An ergonomic and programmatic drawing library for python."
-readme = "README.md"
-license = "AGPL-3.0-only"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "Johnnie Gray", email = "johnniemcgray@gmail.com"}]
 dynamic = ["version"]
 classifiers = [
-    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
 ]
 
 requires-python = ">= 3.11"
@@ -117,8 +125,8 @@ default-environment = "test"
 
 [tool.pixi.tasks.build-test]
 cmd = """
-    rm -rf dist/build-test
-    && python -m build --sdist --wheel --outdir dist/build-test
+    rm -rf dist/build-test &&
+    python -m build --sdist --wheel --outdir dist/build-test
 """
 cwd = "."
 description = "Build source and wheel distributions as a smoke test."
@@ -146,25 +154,25 @@ description = "Serve the documentation locally."
 
 [tool.pixi.feature.docs.tasks.lint]
 cmd = """
-    ruff check --select I
-    && ruff format --check
+    ruff check --select I &&
+    ruff format --check
 """
 cwd = "."
 description = "Check code formatting and imports with ruff."
 
 [tool.pixi.feature.docs.tasks.format]
 cmd = """
-    ruff check --select I --fix
-    && ruff format
+    ruff check --select I --fix &&
+    ruff format
 """
 cwd = "."
 description = "Apply code formatting and fix imports with ruff."
 
 [tool.pixi.feature.docs.tasks.format-all]
 cmd = """
-    ruff check --select I --fix
-    && ruff format
-    && find . -name "*.ipynb" -print0 | xargs -0 squeaky
+    ruff check --select I --fix &&
+    ruff format &&
+    find . -name "*.ipynb" -print0 | xargs -0 squeaky
 """
 cwd = "."
 description = "Format all files including notebooks with squeaky."
