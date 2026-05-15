@@ -1606,9 +1606,6 @@ class Drawing:
         kwargs
             Specific style options passed to ``matplotlib.patches.PathPatch``.
         """
-        import numpy as np
-        from scipy.spatial import ConvexHull
-
         style = parse_style_preset(self.presets, preset, **kwargs)
         radius = style.pop("radius", 0.0)
         resolution = style.pop("resolution", 12)
@@ -1636,9 +1633,8 @@ class Drawing:
             # need at least 3 points to make convex hull
             boundary_pts = expanded_pts
         else:
-            expanded_pts = np.array(expanded_pts)
-            hull = ConvexHull(expanded_pts)
-            boundary_pts = expanded_pts[hull.vertices]
+            hull_idx = convex_hull_2d(expanded_pts)
+            boundary_pts = [expanded_pts[i] for i in hull_idx]
 
         self.patch(boundary_pts, **style)
 
@@ -2779,6 +2775,46 @@ def get_control_points(pa, pb, pc, spacing=1 / 3):
     c_ab, c_bc = inverse(*rc_ab), inverse(*rc_bc)
 
     return c_ab, c_bc
+
+
+def convex_hull_2d(points):
+    """Compute the convex hull of a set of 2D points using Andrew's monotone
+    chain algorithm.
+
+    Parameters
+    ----------
+    points : sequence[tuple[float, float]]
+        The 2D points. Each item must support indexing as ``p[0]``, ``p[1]``.
+
+    Returns
+    -------
+    list[int]
+        Indices into ``points`` of the hull vertices, in counter-clockwise
+        order, matching the convention of ``scipy.spatial.ConvexHull.vertices``
+        for 2D inputs. Collinear points along a hull edge are excluded.
+    """
+    # (x, y, original_index), sorted lexicographically
+    pts = sorted(((points[i][0], points[i][1], i) for i in range(len(points))))
+
+    def cross(o, a, b):
+        # z-component of (a - o) x (b - o)
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    # concatenate, dropping the last point of each chain (repeated start
+    # of the other); result is counter-clockwise
+    return [p[2] for p in lower[:-1]] + [p[2] for p in upper[:-1]]
 
 
 def gen_points_around(coo, radius=1, resolution=12):
