@@ -13,6 +13,8 @@ except _PackageNotFoundError:
 
 from .schematic import (
     Drawing,
+    darken_color,
+    get_color,
     hash_to_color,
 )
 
@@ -20,4 +22,5 @@ __all__ = (
     "darken_color",
     "Drawing",
     "hash_to_color",
+    "get_color",
 )
