@@ -1,4 +1,4 @@
-<img src="docs/_static/robodraw-header.png" alt="robodraw logo" width="640">
+<img src="https://raw.githubusercontent.com/jcmgray/robodraw/main/docs/_static/robodraw-header.png" alt="robodraw logo" width="640">
 
 [![tests](https://github.com/jcmgray/robodraw/actions/workflows/tests.yml/badge.svg)](https://github.com/jcmgray/robodraw/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/jcmgray/robodraw/branch/main/graph/badge.svg?token=Q5evNiuT9S)](https://codecov.io/gh/jcmgray/robodraw)
@@ -60,7 +60,7 @@ d.patch_around(corners, radius=0.5)
 d.grid3d()
 ```
 
-<img src="docs/_static/robodraw-simple-example.png" alt="robodraw simple example" width="480">
+<img src="https://raw.githubusercontent.com/jcmgray/robodraw/main/docs/_static/robodraw-simple-example.png" alt="robodraw simple example" width="480">
 
 The **full documentation** can be found at:
 [robodraw.readthedocs.io](https://robodraw.readthedocs.io). Contributions of
