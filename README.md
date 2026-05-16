@@ -54,3 +54,13 @@ d.grid3d()
 ```
 
 <img src="docs/_static/robodraw-simple-example.png" alt="robodraw simple example" width="480">
+
+The **full documentation** can be found at:
+[robodraw.readthedocs.io](https://robodraw.readthedocs.io). Contributions of
+any sort are very welcome - please see the
+[contributing guide](https://github.com/jcmgray/robodraw/blob/main/.github/CONTRIBUTING.md).
+[Issues](https://github.com/jcmgray/robodraw/issues) and
+[pull requests](https://github.com/jcmgray/robodraw/pulls) are hosted on
+[github](https://github.com/jcmgray/robodraw). For other questions and
+suggestions, please use the
+[discussions page](https://github.com/jcmgray/robodraw/discussions).
