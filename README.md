@@ -16,7 +16,7 @@ for the drawing functionality in [`quimb`](https://quimb.readthedocs.io) and
 Some useful features include:
 
 - no boilerplate to get a simple drawing.
-- plot limits automatially expand to fit all drawn elements.
+- plot limits automatically expand to fit all drawn elements.
 - style presets: reuse style across elements.
 - diagram primitives like `zigzag`, `curve` (draw a smooth line through an
   arbitrary set of points exactly), and `patch_around` (draw a smooth shape
