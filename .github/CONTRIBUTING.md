@@ -1,39 +1,27 @@
 # Contributing
 
-Thanks for helping improve `robodraw`.
+Contributions to `robodraw` in the form of
+[pull requests](https://github.com/jcmgray/robodraw/pulls) are very welcome.
+Opening an [issue](https://github.com/jcmgray/robodraw/issues) first can be
+useful for larger changes, design questions, or work that might affect public
+APIs.
 
-## Development Setup
+If this is your first time contributing on GitHub, the following guide may be
+useful:
 
-This project uses pixi. From the repository root:
+- [GitHub - Creating a pull request](https://help.github.com/articles/creating-a-pull-request/)
 
-```bash
-pixi install
-pixi run -e test pytest
-```
+Please read and follow the [`robodraw` Code of Conduct](../CODE_OF_CONDUCT.md).
 
-For a focused test, run:
 
-```bash
-pixi run -e test pytest tests/test_elements.py::test_element_smoke_adds_artist -q
-```
+## AI Policy
 
-## Checks
+Please treat the [numpy AI policy](https://numpy.org/devdocs/dev/ai_policy.html) as a rough guide.
 
-Before opening a pull request, run the checks that match the change:
 
-```bash
-pixi run lint
-pixi run -e test test
-pixi run docs
-```
+## Development Guide
 
-Use `pixi run format` for code formatting. Use `pixi run format-all` only when
-you intentionally want to format notebooks as well.
-
-## Notes
-
-- Most code lives in `robodraw/schematic.py`.
-- Tests should assert on matplotlib artists and helper functions rather than
-  image snapshots.
-- Documentation API pages are generated from docstrings, so keep public
-  docstrings clear and complete.
+Setup, tests, formatting, building the docs, and the full contribution
+checklist are documented in the
+[development guide](https://robodraw.readthedocs.io/en/latest/develop.html)
+(source: [`docs/develop.md`](../docs/develop.md)).

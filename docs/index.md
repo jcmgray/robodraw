@@ -47,6 +47,7 @@ examples/full-diagrams
 ```{toctree}
 :caption: Development
 changelog
+develop
 ```
 
 ## Quick example
