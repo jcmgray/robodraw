@@ -460,6 +460,8 @@ class Drawing:
         kwargs
             Specific style options passed to ``matplotlib.axes.Axes.text``.
         """
+        project = kwargs.pop("project", True)
+
         style = parse_style_preset(self.presets, preset, **kwargs)
         style.setdefault("color", self.drawcolor)
         style.setdefault("horizontalalignment", "center")
@@ -476,6 +478,7 @@ class Drawing:
             style,
             zorder_delta=style.pop("zorder_delta", 0.02),
             zorder_aggregate=style.pop("zorder_aggregate", "mean"),
+            project=project,
         )
 
         # compute midpoint
@@ -1050,6 +1053,7 @@ class Drawing:
             xa, xb = [center[0] + stretch * (x - center[0]) for x in (xa, xb)]
             ya, yb = [center[1] + stretch * (y - center[1]) for y in (ya, yb)]
 
+        # from here on the coordinates are already in projected screen space
         cooa, coob = (xa, ya), (xb, yb)
 
         if arrowhead is not None:
@@ -1057,7 +1061,9 @@ class Drawing:
                 arrowhead = {}
             else:
                 arrowhead = dict(arrowhead)
-            self.arrowhead(cooa, coob, preset=preset, **(style | arrowhead))
+            self.arrowhead(
+                cooa, coob, preset=preset, **(style | arrowhead), project=False
+            )
 
         line = mpl.lines.Line2D([xa, xb], [ya, yb], **style)
         self.ax.add_artist(line)
@@ -1070,7 +1076,7 @@ class Drawing:
 
             # don't want to pass full style dict to text_between
             text.setdefault("zorder", style["zorder"] + 0.02)
-            self.text_between(cooa, coob, **text)
+            self.text_between(cooa, coob, project=False, **text)
 
         if text_left:
             if isinstance(text_left, str):
@@ -1079,7 +1085,9 @@ class Drawing:
                 text_left = dict(text_left)
 
             text_left.setdefault("zorder", style["zorder"] + 0.02)
-            self.text_between(cooa, coob, center=0.0, **text_left)
+            self.text_between(
+                cooa, coob, center=0.0, project=False, **text_left
+            )
 
         if text_right:
             if isinstance(text_right, str):
@@ -1088,7 +1096,9 @@ class Drawing:
                 text_right = dict(text_right)
 
             text_right.setdefault("zorder", style["zorder"] + 0.02)
-            self.text_between(cooa, coob, center=1.0, **text_right)
+            self.text_between(
+                cooa, coob, center=1.0, project=False, **text_right
+            )
 
         self._adjust_lims(xa, ya)
         self._adjust_lims(xb, yb)
@@ -1146,6 +1156,7 @@ class Drawing:
             zorder_aggregate=style.pop("zorder_aggregate", "mean"),
         )
 
+        # from here on the coordinates are already in projected screen space
         forward, inverse = get_rotator_and_inverse(cooa, coob)
         R = forward(*coob)[0]
 
@@ -1169,9 +1180,15 @@ class Drawing:
             arrowhead["center"] = min(
                 max(0.0, 0.5 + (center - 0.5) / midlength), 1.0
             )
-            self.arrowhead(cooml, coomr, preset=preset, **(style | arrowhead))
+            self.arrowhead(
+                cooml,
+                coomr,
+                preset=preset,
+                **(style | arrowhead),
+                project=False,
+            )
 
-        self.curve(curve_pts, preset=preset, **style)
+        self.curve(curve_pts, preset=preset, project=False, **style)
 
         if text:
             if isinstance(text, str):
@@ -1180,7 +1197,7 @@ class Drawing:
                 text = dict(text)
             # don't want to pass full style dict to text_between
             text.setdefault("zorder", style["zorder"])
-            self.text_between(cooml, coomr, **text)
+            self.text_between(cooml, coomr, project=False, **text)
 
         if text_left:
             if isinstance(text_left, str):
@@ -1189,7 +1206,9 @@ class Drawing:
                 text_left = dict(text_left)
 
             text_left.setdefault("zorder", style["zorder"])
-            self.text_between(cooml, coomr, center=0.0, **text_left)
+            self.text_between(
+                cooml, coomr, center=0.0, project=False, **text_left
+            )
 
         if text_right:
             if isinstance(text_right, str):
@@ -1198,7 +1217,9 @@ class Drawing:
                 text_right = dict(text_right)
 
             text_right.setdefault("zorder", style["zorder"])
-            self.text_between(cooml, coomr, center=1.0, **text_right)
+            self.text_between(
+                cooml, coomr, center=1.0, project=False, **text_right
+            )
 
         for coo in curve_pts:
             self._adjust_lims(*coo)
@@ -1309,6 +1330,8 @@ class Drawing:
         kwargs
             Specific style options passed to ``matplotlib.lines.Line2D``.
         """
+        project = kwargs.pop("project", True)
+
         style = parse_style_preset(self.presets, preset, **kwargs)
         style.setdefault("color", self.drawcolor)
         style.setdefault("center", 0.5)
@@ -1318,7 +1341,7 @@ class Drawing:
 
         reverse = style.pop("reverse")
         if reverse == "both":
-            self.arrowhead(cooa, coob, preset=preset, **style)
+            self.arrowhead(cooa, coob, preset=preset, project=project, **style)
         if reverse:
             cooa, coob = coob, cooa
 
@@ -1327,6 +1350,7 @@ class Drawing:
             style,
             zorder_delta=style.pop("zorder_delta", 0.0),
             zorder_aggregate=style.pop("zorder_aggregate", "mean"),
+            project=project,
         )
 
         forward, inverse = get_rotator_and_inverse(cooa, coob)

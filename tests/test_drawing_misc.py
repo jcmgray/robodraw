@@ -83,3 +83,30 @@ def test_savefig_writes_nonempty_file(tmp_path, drawing, ext):
     drawing.savefig(out)
     assert out.exists()
     assert out.stat().st_size > 0
+
+
+def test_translate_line_arrowhead_not_doubly_translated(drawing):
+    with drawing.translate(5, 0):
+        drawing.line((-0.5, 0.7), (-0.5, -0.5), arrowhead={"center": 1.0})
+    arrow, line = drawing.ax.lines
+    assert line.get_xydata()[-1] == pytest.approx(
+        drawing._2d_project(4.5, -0.5)
+    )
+    # the arrowhead tip is the middle vertex, here at the line end
+    assert arrow.get_xydata()[1] == pytest.approx(
+        drawing._2d_project(4.5, -0.5)
+    )
+
+
+def test_translate_line_offset_delegations_not_doubly_translated(drawing):
+    with drawing.translate(5, 0):
+        drawing.line_offset((0, 0), (2, 0), 0.0, arrowhead=True, text="a")
+    (curve,) = drawing.ax.patches
+    verts = curve.get_path().vertices
+    assert verts[0] == pytest.approx(drawing._2d_project(5, 0))
+    assert verts[-1] == pytest.approx(drawing._2d_project(7, 0))
+    # arrowhead tip and text both sit halfway along
+    (arrow,) = drawing.ax.lines
+    assert arrow.get_xydata()[1] == pytest.approx(drawing._2d_project(6, 0))
+    (text,) = drawing.ax.texts
+    assert text.get_position() == pytest.approx(drawing._2d_project(6, 0))
