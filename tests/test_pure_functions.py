@@ -5,12 +5,15 @@ exactly, so they get the most thorough coverage.
 """
 
 import math
+import warnings
 
 import pytest
+from matplotlib.colors import to_rgba
 
 from robodraw.schematic import (
     auto_colors,
     average_color,
+    color_oklch,
     darken_color,
     distance,
     gen_points_around,
@@ -26,6 +29,86 @@ from robodraw.schematic import (
 # --------------------------------------------------------------------------- #
 # colors
 # --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("l", "expected"),
+    [
+        (0.0, (0.0, 0.0, 0.0)),
+        (0.5, (0.38857286, 0.38857286, 0.38857286)),
+        (1.0, (1.0, 1.0, 1.0)),
+    ],
+)
+def test_color_oklch_achromatic(l, expected):
+    assert color_oklch(l, 0.0, 0.0) == pytest.approx(expected, abs=1e-7)
+
+
+def test_color_oklch_hue_wraps_at_one():
+    assert color_oklch(0.7, 0.2, 0.0) == color_oklch(0.7, 0.2, 1.0)
+
+
+def test_color_oklch_known_in_gamut_conversion():
+    assert color_oklch(0.7, 0.25, 0.5) == pytest.approx(
+        (0.29264201, 0.70096181, 0.63016792),
+        abs=1e-7,
+    )
+
+
+def test_color_oklch_out_of_gamut_clip():
+    # native oklch(0.69012 0.25077 199.893)
+    args = (0.69012, 0.25077 / 0.4, 199.893 / 360.0)
+    with pytest.warns(UserWarning, match="outside the sRGB gamut"):
+        color = color_oklch(*args)
+    assert color == pytest.approx((0.0, 0.76208, 0.84480), abs=1e-5)
+
+
+def test_color_oklch_out_of_gamut_reduce():
+    # native oklch(0.69012 0.25077 199.893)
+    args = (0.69012, 0.25077 / 0.4, 199.893 / 360.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        color = color_oklch(*args, gamut="reduce")
+    assert color == pytest.approx((0.0, 0.69283, 0.72069), abs=1e-5)
+
+
+def test_color_oklch_gamut_raise_accepts_in_gamut_color():
+    expected = color_oklch(0.7, 0.25, 0.5)
+    assert color_oklch(0.7, 0.25, 0.5, gamut="raise") == expected
+
+
+def test_color_oklch_gamut_raise_rejects_out_of_gamut_color():
+    # native oklch(0.69012 0.25077 199.893)
+    args = (0.69012, 0.25077 / 0.4, 199.893 / 360.0)
+    with pytest.raises(ValueError, match="outside the sRGB gamut"):
+        color_oklch(*args, gamut="raise")
+
+
+@pytest.mark.parametrize(
+    ("args", "match"),
+    [
+        ((-0.1, 0.0, 0.0), "l"),
+        ((1.1, 0.0, 0.0), "l"),
+        ((0.0, -0.1, 0.0), "c"),
+        ((0.0, 1.1, 0.0), "c"),
+        ((0.0, 0.0, -0.1), "h"),
+        ((0.0, 0.0, 1.1), "h"),
+    ],
+)
+def test_color_oklch_rejects_out_of_range_input(args, match):
+    with pytest.raises(ValueError, match=match):
+        color_oklch(*args)
+
+
+def test_color_oklch_rejects_invalid_gamut():
+    with pytest.raises(ValueError, match="gamut"):
+        color_oklch(0.5, 0.5, 0.5, gamut="compress")
+
+
+def test_color_oklch_returns_matplotlib_color():
+    color = color_oklch(0.6, 0.1, 0.3)
+    assert len(color) == 3
+    assert all(type(channel) is float for channel in color)
+    assert to_rgba(color) == (*color, 1.0)
 
 
 def test_hash_to_color_deterministic_and_hex():

@@ -13,14 +13,16 @@ except _PackageNotFoundError:
 
 from .schematic import (
     Drawing,
+    color_oklch,
     darken_color,
     get_color,
     hash_to_color,
 )
 
 __all__ = (
-    "darken_color",
     "Drawing",
-    "hash_to_color",
+    "color_oklch",
+    "darken_color",
     "get_color",
+    "hash_to_color",
 )

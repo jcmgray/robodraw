@@ -2372,6 +2372,113 @@ _COLORS_DEFAULT = {
 }
 
 
+def color_oklch(l, c, h, gamut="clip"):
+    """Convert a normalized OKLCH color to sRGB.
+
+    Parameters
+    ----------
+    l : float
+        Lightness normalized to the inclusive interval ``[0, 1]``.
+    c : float
+        Chroma normalized to the inclusive interval ``[0, 1]``. The native
+        OKLCH chroma used for conversion is ``0.4 * c``, following the CSS
+        percentage reference scale.
+    h : float
+        Hue normalized to the inclusive interval ``[0, 1]``, corresponding to
+        an angle from 0 through 360 degrees. Thus, 0 and 1 specify the same
+        hue. For orientation, approximate hues include red at 0.08 (29
+        degrees), yellow at 0.31 (110 degrees), green at 0.40 (143 degrees),
+        and blue at 0.73 (264 degrees).
+    gamut : {"clip", "reduce", "raise"}, optional
+        How to handle colors outside the sRGB gamut. ``"clip"`` clips the
+        linear RGB channels and emits a :class:`UserWarning`. ``"reduce"``
+        preserves lightness and hue while reducing chroma to the largest
+        in-gamut value. ``"raise"`` raises a :class:`ValueError`. Default is
+        ``"clip"``.
+
+    Returns
+    -------
+    color : tuple[float, float, float]
+        A Matplotlib-compatible sRGB color with channels in ``[0, 1]``.
+
+    Raises
+    ------
+    ValueError
+        If ``l``, ``c``, or ``h`` is outside ``[0, 1]``, or if ``gamut`` is
+        not a supported mode. Also raised for an out-of-gamut color when
+        ``gamut="raise"``.
+
+    Warns
+    -----
+    UserWarning
+        If the color is outside the sRGB gamut and ``gamut="clip"``.
+    """
+    for name, value in (("l", l), ("c", c), ("h", h)):
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be in the interval [0, 1]")
+
+    if gamut not in {"clip", "reduce", "raise"}:
+        raise ValueError("gamut must be 'clip', 'reduce', or 'raise'")
+
+    l = float(l)
+    c = 0.4 * float(c)
+    h = float(h) % 1.0
+    a = cos(2.0 * pi * h)
+    b = sin(2.0 * pi * h)
+
+    def to_linear_rgb(chroma):
+        lab_a = chroma * a
+        lab_b = chroma * b
+        l_ = l + 0.3963377774 * lab_a + 0.2158037573 * lab_b
+        m_ = l - 0.1055613458 * lab_a - 0.0638541728 * lab_b
+        s_ = l - 0.0894841775 * lab_a - 1.2914855480 * lab_b
+        l_ = l_**3
+        m_ = m_**3
+        s_ = s_**3
+        return (
+            +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+            -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+            -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+        )
+
+    gamut_tolerance = 1e-12
+
+    def is_in_gamut(rgb):
+        return all(
+            -gamut_tolerance <= channel <= 1.0 + gamut_tolerance
+            for channel in rgb
+        )
+
+    linear_rgb = to_linear_rgb(c)
+    if not is_in_gamut(linear_rgb):
+        if gamut == "clip":
+            warnings.warn(
+                "OKLCH color is outside the sRGB gamut and was clipped",
+                UserWarning,
+                stacklevel=2,
+            )
+        elif gamut == "reduce":
+            c_min = 0.0
+            c_max = c
+            for _ in range(24):
+                c_mid = (c_min + c_max) / 2.0
+                if is_in_gamut(to_linear_rgb(c_mid)):
+                    c_min = c_mid
+                else:
+                    c_max = c_mid
+            linear_rgb = to_linear_rgb(c_min)
+        else:
+            raise ValueError("OKLCH color is outside the sRGB gamut")
+
+    def srgb_encode(channel):
+        channel = min(max(channel, 0.0), 1.0)
+        if channel <= 0.0031308:
+            return float(12.92 * channel)
+        return float(1.055 * channel ** (1.0 / 2.4) - 0.055)
+
+    return tuple(srgb_encode(channel) for channel in linear_rgb)
+
+
 def get_color(
     which,
     alpha=None,
