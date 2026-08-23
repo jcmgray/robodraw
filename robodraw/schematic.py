@@ -563,13 +563,13 @@ class Drawing:
         return x, y, style
 
     def _adjust_lims_for_marker(self, x, y, r):
-        for x, y in [
+        for _x, _y in [
             (x - 1.1 * r, y),
             (x + 1.1 * r, y),
             (x, y - 1.1 * r),
             (x, y + 1.1 * r),
         ]:
-            self._adjust_lims(x, y)
+            self._adjust_lims(_x, _y)
 
     def circle(self, coo, preset=None, **kwargs):
         """Draw a circle at the specified coordinate.
@@ -1899,7 +1899,7 @@ class Drawing:
         yimin = float("inf")
         yimax = float("-inf")
 
-        style = dict(color=color, alpha=alpha, zorder=zorder)
+        style = {"color": color, "alpha": alpha, "zorder": zorder}
 
         for xi in range(gxmin - 1, gxmax + 2):
             if xmin <= xi <= xmax:
@@ -1965,7 +1965,7 @@ class Drawing:
         margin=0.5,
         ticklabels=True,
     ):
-        style = dict(color=color, alpha=alpha, zorder_delta=zorder_delta)
+        style = {"color": color, "alpha": alpha, "zorder_delta": zorder_delta}
 
         if self._3d_xmin is None:
             warnings.warn(
@@ -2818,7 +2818,7 @@ def convex_hull_2d(points):
         for 2D inputs. Collinear points along a hull edge are excluded.
     """
     # (x, y, original_index), sorted lexicographically
-    pts = sorted(((points[i][0], points[i][1], i) for i in range(len(points))))
+    pts = sorted((points[i][0], points[i][1], i) for i in range(len(points)))
 
     def cross(o, a, b):
         # z-component of (a - o) x (b - o)
