@@ -60,6 +60,22 @@ def test_translate_offsets_then_restores(drawing):
     assert tuple(drawing.ax.patches[-1].center) == pytest.approx((10.0, 5.0))
 
 
+def test_translate_permanently_offsets_and_accumulates(drawing):
+    drawing.translate(10, 5, 2)
+    drawing.translate(-3, 1, 4)
+    assert drawing._offset == (7, 6, 6)
+
+    drawing.circle((0, 0))
+    assert tuple(drawing.ax.patches[-1].center) == pytest.approx((7.0, 6.0))
+
+
+def test_translate_context_restores_permanent_offset(drawing):
+    drawing.translate(10, 5, 2)
+    with drawing.translate(1, 2, 3):
+        assert drawing._offset == (11, 7, 5)
+    assert drawing._offset == (10, 5, 2)
+
+
 def test_translate_nested(drawing):
     with drawing.translate(1, 1):
         with drawing.translate(2, 3):

@@ -282,10 +282,13 @@ class Drawing:
                 zscale=self._project_zscale,
             )
 
-    @contextmanager
     def translate(self, dx=0, dy=0, dz=0):
-        """Context manager to temporarily translate all draw operations, in
-        coordinate space (i.e. before any projection and scaling).
+        """Translate all draw operations in coordinate space (i.e. before any
+        projection and scaling).
+
+        When called directly, the translation is permanent and accumulates
+        with any existing offset. When used as a context manager, the previous
+        offset is restored upon exiting the context.
 
         Parameters
         ----------
@@ -300,15 +303,24 @@ class Drawing:
         --------
 
             >>> d = Drawing()
+            >>> d.translate(10, 5)
+            >>> d.circle((0, 0))  # drawn at (10, 5)
+
+            >>> d = Drawing()
             >>> with d.translate(10, 5):
             ...     d.circle((0, 0))  # drawn at (10, 5)
         """
         ox, oy, oz = self._offset
         self._offset = (ox + dx, oy + dy, oz + dz)
-        try:
-            yield self
-        finally:
-            self._offset = (ox, oy, oz)
+
+        @contextmanager
+        def restore_offset():
+            try:
+                yield self
+            finally:
+                self._offset = (ox, oy, oz)
+
+        return restore_offset()
 
     @contextmanager
     def translate_screen(self, dx=0, dy=0):
