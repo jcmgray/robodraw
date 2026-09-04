@@ -13,6 +13,8 @@ except _PackageNotFoundError:
 
 from .schematic import (
     Drawing,
+    color_okhsl,
+    color_okhsv,
     color_oklch,
     darken_color,
     get_color,
@@ -21,6 +23,8 @@ from .schematic import (
 
 __all__ = (
     "Drawing",
+    "color_okhsl",
+    "color_okhsv",
     "color_oklch",
     "darken_color",
     "get_color",

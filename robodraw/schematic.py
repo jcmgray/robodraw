@@ -2384,6 +2384,81 @@ _COLORS_DEFAULT = {
 }
 
 
+def _oklch_to_linear_rgb(l, c, h):
+    """Convert OKLCH coordinates to linear RGB.
+
+    Hue is in ``[0, 1]``. The result can be outside the sRGB gamut.
+    """
+    a = c * cos(2.0 * pi * h)
+    b = c * sin(2.0 * pi * h)
+    l_ = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (l - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    return (
+        +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
+
+
+_GAMUT_TOLERANCE = 1e-12
+
+
+def _is_in_srgb_gamut(linear_rgb):
+    """Return True if all linear RGB channels are in ``[0, 1]``."""
+    return all(
+        -_GAMUT_TOLERANCE <= channel <= 1.0 + _GAMUT_TOLERANCE
+        for channel in linear_rgb
+    )
+
+
+def _max_srgb_chroma(l, h, c_max=0.4, iterations=32):
+    """Find the largest in-gamut OKLCH chroma up to ``c_max``."""
+    if _is_in_srgb_gamut(_oklch_to_linear_rgb(l, c_max, h)):
+        return c_max
+    c_min = 0.0
+    for _ in range(iterations):
+        c_mid = (c_min + c_max) / 2.0
+        if _is_in_srgb_gamut(_oklch_to_linear_rgb(l, c_mid, h)):
+            c_min = c_mid
+        else:
+            c_max = c_mid
+    return c_min
+
+
+def _srgb_cusp(h, iterations=40):
+    """Find the most chromatic sRGB color for hue ``h``.
+
+    Return its OKLCH lightness and chroma.
+    """
+    # channel signs depend only on the chroma-to-lightness ratio
+    ratio_min = 0.0
+    ratio_max = 2.0
+    for _ in range(iterations):
+        ratio_mid = (ratio_min + ratio_max) / 2.0
+        if all(x >= 0.0 for x in _oklch_to_linear_rgb(1.0, ratio_mid, h)):
+            ratio_min = ratio_mid
+        else:
+            ratio_max = ratio_mid
+
+    # scale lightness until the largest channel is 1
+    linear_rgb = _oklch_to_linear_rgb(1.0, ratio_min, h)
+    lightness = max(linear_rgb) ** (-1.0 / 3.0)
+    return lightness, ratio_min * lightness
+
+
+def _srgb_encode(linear_rgb):
+    """Convert linear RGB to sRGB and clip each channel to ``[0, 1]``."""
+    channels = []
+    for channel in linear_rgb:
+        channel = min(max(channel, 0.0), 1.0)
+        if channel <= 0.0031308:
+            channels.append(float(12.92 * channel))
+        else:
+            channels.append(float(1.055 * channel ** (1.0 / 2.4) - 0.055))
+    return tuple(channels)
+
+
 def color_oklch(l, c, h, gamut="clip"):
     """Convert a normalized OKLCH color to sRGB.
 
@@ -2424,6 +2499,10 @@ def color_oklch(l, c, h, gamut="clip"):
     -----
     UserWarning
         If the color is outside the sRGB gamut and ``gamut="clip"``.
+
+    See Also
+    --------
+    color_okhsl, color_okhsv
     """
     for name, value in (("l", l), ("c", c), ("h", h)):
         if not 0.0 <= value <= 1.0:
@@ -2435,34 +2514,9 @@ def color_oklch(l, c, h, gamut="clip"):
     l = float(l)
     c = 0.4 * float(c)
     h = float(h) % 1.0
-    a = cos(2.0 * pi * h)
-    b = sin(2.0 * pi * h)
 
-    def to_linear_rgb(chroma):
-        lab_a = chroma * a
-        lab_b = chroma * b
-        l_ = l + 0.3963377774 * lab_a + 0.2158037573 * lab_b
-        m_ = l - 0.1055613458 * lab_a - 0.0638541728 * lab_b
-        s_ = l - 0.0894841775 * lab_a - 1.2914855480 * lab_b
-        l_ = l_**3
-        m_ = m_**3
-        s_ = s_**3
-        return (
-            +4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
-            -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
-            -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
-        )
-
-    gamut_tolerance = 1e-12
-
-    def is_in_gamut(rgb):
-        return all(
-            -gamut_tolerance <= channel <= 1.0 + gamut_tolerance
-            for channel in rgb
-        )
-
-    linear_rgb = to_linear_rgb(c)
-    if not is_in_gamut(linear_rgb):
+    linear_rgb = _oklch_to_linear_rgb(l, c, h)
+    if not _is_in_srgb_gamut(linear_rgb):
         if gamut == "clip":
             warnings.warn(
                 "OKLCH color is outside the sRGB gamut and was clipped",
@@ -2470,25 +2524,120 @@ def color_oklch(l, c, h, gamut="clip"):
                 stacklevel=2,
             )
         elif gamut == "reduce":
-            c_min = 0.0
-            c_max = c
-            for _ in range(24):
-                c_mid = (c_min + c_max) / 2.0
-                if is_in_gamut(to_linear_rgb(c_mid)):
-                    c_min = c_mid
-                else:
-                    c_max = c_mid
-            linear_rgb = to_linear_rgb(c_min)
+            linear_rgb = _oklch_to_linear_rgb(
+                l, _max_srgb_chroma(l, h, c_max=c, iterations=24), h
+            )
         else:
             raise ValueError("OKLCH color is outside the sRGB gamut")
 
-    def srgb_encode(channel):
-        channel = min(max(channel, 0.0), 1.0)
-        if channel <= 0.0031308:
-            return float(12.92 * channel)
-        return float(1.055 * channel ** (1.0 / 2.4) - 0.055)
+    return _srgb_encode(linear_rgb)
 
-    return tuple(srgb_encode(channel) for channel in linear_rgb)
+
+def color_okhsl(h, s, l):
+    """Convert normalized OKHSL coordinates to sRGB. As a color picker, roughly
+    speaking, this function prioritizes uniform lightness over colorfulness.
+
+    All valid inputs produce a color inside the sRGB gamut.
+
+    Parameters
+    ----------
+    h : float
+        Hue in ``[0, 1]``. Values 0 and 1 give the same hue.
+        Approximate values are red at 0.08, yellow at 0.31, green at 0.40,
+        and blue at 0.73.
+    s : float
+        Saturation in ``[0, 1]``. This is the fraction of the maximum sRGB
+        chroma for the specified lightness and hue. A value of 0 gives gray.
+    l : float
+        OKLCH lightness in ``[0, 1]``. A value of 0 gives black. A value of 1
+        gives white.
+
+    Returns
+    -------
+    color : tuple[float, float, float]
+        sRGB channels in ``[0, 1]``, suitable for Matplotlib.
+
+    Raises
+    ------
+    ValueError
+        If ``h``, ``s``, or ``l`` is outside ``[0, 1]``.
+
+    See Also
+    --------
+    color_okhsv, color_oklch
+
+    Notes
+    -----
+    This function does not implement the CSS ``okhsl`` color space. CSS uses
+    an approximate gamut boundary and a different lightness scale for dark
+    colors.
+    """
+    for name, value in (("h", h), ("s", s), ("l", l)):
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be in the interval [0, 1]")
+
+    h = float(h) % 1.0
+    l = float(l)
+    c = float(s) * _max_srgb_chroma(l, h)
+
+    return _srgb_encode(_oklch_to_linear_rgb(l, c, h))
+
+
+def color_okhsv(h, s, v):
+    """Convert normalized OKHSV coordinates to sRGB. As a color picker, roughly
+    speaking, this function prioritizes colorfulness over uniform lightness.
+
+    Parameters
+    ----------
+    h : float
+        Hue in ``[0, 1]``. Values 0 and 1 give the same hue.
+        Approximate values are red at 0.08, yellow at 0.31, green at 0.40,
+        and blue at 0.73.
+    s : float
+        Saturation in ``[0, 1]``. At ``v=1``, 0 gives white. A value of 1
+        gives the most chromatic sRGB color for the specified hue.
+    v : float
+        Value in ``[0, 1]``. This scales the color toward black. A value of 0
+        gives black.
+
+    Returns
+    -------
+    color : tuple[float, float, float]
+        sRGB channels in ``[0, 1]``, suitable for Matplotlib.
+
+    Raises
+    ------
+    ValueError
+        If ``h``, ``s``, or ``v`` is outside ``[0, 1]``.
+
+    See Also
+    --------
+    color_okhsl, color_oklch
+
+    Notes
+    -----
+    At a fixed value, lightness changes with hue. Yellow hues are generally
+    lighter than blue hues. Use :func:`color_okhsl` to keep lightness fixed.
+
+    The conversion models the sRGB gamut as a triangle between black, white,
+    and the most chromatic color for the hue. The boundary near black is
+    exact. Near white, the model can exceed the gamut by a few percent. The
+    function then reduces chroma.
+    """
+    for name, value in (("h", h), ("s", s), ("v", v)):
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"{name} must be in the interval [0, 1]")
+
+    h = float(h) % 1.0
+    s = float(s)
+    v = float(v)
+
+    cusp_lightness, cusp_chroma = _srgb_cusp(h)
+    # interpolate white to cusp, then scale toward black
+    l = v * (1.0 - s + s * cusp_lightness)
+    c = min(v * s * cusp_chroma, _max_srgb_chroma(l, h))
+
+    return _srgb_encode(_oklch_to_linear_rgb(l, c, h))
 
 
 def get_color(

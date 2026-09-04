@@ -11,8 +11,14 @@ import pytest
 from matplotlib.colors import to_rgba
 
 from robodraw.schematic import (
+    _max_srgb_chroma,
+    _oklch_to_linear_rgb,
+    _srgb_cusp,
+    _srgb_encode,
     auto_colors,
     average_color,
+    color_okhsl,
+    color_okhsv,
     color_oklch,
     darken_color,
     distance,
@@ -81,6 +87,157 @@ def test_color_oklch_gamut_raise_rejects_out_of_gamut_color():
     args = (0.69012, 0.25077 / 0.4, 199.893 / 360.0)
     with pytest.raises(ValueError, match="outside the sRGB gamut"):
         color_oklch(*args, gamut="raise")
+
+
+class TestColorOkhsl:
+    @pytest.mark.parametrize("h", [0.0, 0.31, 0.73])
+    @pytest.mark.parametrize("l", [0.0, 0.3, 0.5, 0.9, 1.0])
+    def test_zero_saturation_is_gray(self, h, l):
+        color = color_okhsl(h, 0.0, l)
+        assert color == pytest.approx(color_oklch(l, 0.0, h))
+        assert color[0] == pytest.approx(color[1]) == pytest.approx(color[2])
+
+    @pytest.mark.parametrize("l", [0.0, 0.5, 1.0])
+    def test_hue_wraps_at_one(self, l):
+        assert color_okhsl(0.0, 0.8, l) == color_okhsl(1.0, 0.8, l)
+
+    @pytest.mark.parametrize("s", [0.0, 0.5, 1.0])
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.40, 0.73])
+    def test_extreme_lightness_is_black_or_white(self, h, s):
+        assert color_okhsl(h, s, 0.0) == pytest.approx(
+            (0.0, 0.0, 0.0), abs=1e-6
+        )
+        assert color_okhsl(h, s, 1.0) == pytest.approx(
+            (1.0, 1.0, 1.0), abs=1e-6
+        )
+
+    @pytest.mark.parametrize("h", [i / 16 for i in range(16)])
+    @pytest.mark.parametrize("l", [0.1, 0.3, 0.5, 0.7, 0.9])
+    def test_full_saturation_is_in_gamut_and_on_boundary(self, h, l):
+        color = color_okhsl(h, 1.0, l)
+        assert all(0.0 <= channel <= 1.0 for channel in color)
+        # at least one linear channel must be at a gamut limit
+        assert min(
+            min(abs(channel), abs(1.0 - channel))
+            for channel in _oklch_to_linear_rgb(l, _max_srgb_chroma(l, h), h)
+        ) == pytest.approx(0.0, abs=1e-8)
+
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.73])
+    @pytest.mark.parametrize("l", [0.2, 0.5, 0.8])
+    def test_saturation_scales_chroma(self, h, l):
+        c_max = _max_srgb_chroma(l, h)
+        for s in (0.25, 0.5, 1.0):
+            assert color_okhsl(h, s, l) == pytest.approx(
+                color_oklch(l, s * c_max / 0.4, h, gamut="raise")
+            )
+
+    def test_never_warns_or_clips(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            for h_step in range(11):
+                for s_step in range(11):
+                    for l_step in range(11):
+                        color_okhsl(h_step / 10, s_step / 10, l_step / 10)
+
+    @pytest.mark.parametrize(
+        ("args", "match"),
+        [
+            ((-0.1, 0.0, 0.0), "h"),
+            ((1.1, 0.0, 0.0), "h"),
+            ((0.0, -0.1, 0.0), "s"),
+            ((0.0, 1.1, 0.0), "s"),
+            ((0.0, 0.0, -0.1), "l"),
+            ((0.0, 0.0, 1.1), "l"),
+        ],
+    )
+    def test_rejects_out_of_range_input(self, args, match):
+        with pytest.raises(ValueError, match=match):
+            color_okhsl(*args)
+
+
+class TestColorOkhsv:
+    @pytest.mark.parametrize("h", [i / 8 for i in range(8)])
+    def test_cusp_matches_brute_force_scan(self, h):
+        lightness_min, lightness_max = 0.0, 1.0
+        for _ in range(60):
+            probe_offset = (lightness_max - lightness_min) / 3
+            lower_probe = lightness_min + probe_offset
+            upper_probe = lightness_max - probe_offset
+            if _max_srgb_chroma(lower_probe, h) < _max_srgb_chroma(
+                upper_probe, h
+            ):
+                lightness_min = lower_probe
+            else:
+                lightness_max = upper_probe
+        lightness = (lightness_min + lightness_max) / 2
+        assert _srgb_cusp(h) == pytest.approx(
+            (lightness, _max_srgb_chroma(lightness, h)), abs=1e-6
+        )
+
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.73])
+    @pytest.mark.parametrize("s", [0.0, 0.5, 1.0])
+    def test_zero_value_is_black(self, h, s):
+        assert color_okhsv(h, s, 0.0) == pytest.approx((0.0, 0.0, 0.0))
+
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.73])
+    @pytest.mark.parametrize("v", [0.0, 0.4, 1.0])
+    def test_zero_saturation_is_gray(self, h, v):
+        assert color_okhsv(h, 0.0, v) == pytest.approx(color_oklch(v, 0.0, h))
+
+    @pytest.mark.parametrize("h", [i / 8 for i in range(8)])
+    def test_full_saturation_and_value_is_the_cusp(self, h):
+        cusp_lightness, cusp_chroma = _srgb_cusp(h)
+        assert color_okhsv(h, 1.0, 1.0) == pytest.approx(
+            _srgb_encode(_oklch_to_linear_rgb(cusp_lightness, cusp_chroma, h)),
+            abs=1e-6,
+        )
+
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.73])
+    def test_full_value_zero_saturation_is_white(self, h):
+        assert color_okhsv(h, 0.0, 1.0) == pytest.approx((1.0, 1.0, 1.0))
+
+    @pytest.mark.parametrize("h", [i / 16 for i in range(16)])
+    @pytest.mark.parametrize("s", [0.25, 0.5, 0.75, 1.0])
+    @pytest.mark.parametrize("v", [0.25, 0.5, 0.75, 1.0])
+    def test_always_in_gamut(self, h, s, v):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            color = color_okhsv(h, s, v)
+        assert all(0.0 <= channel <= 1.0 for channel in color)
+
+    @pytest.mark.parametrize("h", [0.08, 0.31, 0.73])
+    @pytest.mark.parametrize("v", [0.4, 0.7, 1.0])
+    def test_full_saturation_edge_is_exact(self, h, v):
+        # the black-to-cusp boundary is linear and needs no clipping
+        cusp_lightness, cusp_chroma = _srgb_cusp(h)
+        assert color_okhsv(h, 1.0, v) == pytest.approx(
+            _srgb_encode(
+                _oklch_to_linear_rgb(
+                    v * cusp_lightness,
+                    v * cusp_chroma,
+                    h,
+                )
+            ),
+            abs=1e-6,
+        )
+
+    def test_hue_wraps_at_one(self):
+        assert color_okhsv(0.0, 0.8, 0.8) == color_okhsv(1.0, 0.8, 0.8)
+
+    @pytest.mark.parametrize(
+        ("args", "match"),
+        [
+            ((-0.1, 0.0, 0.0), "h"),
+            ((1.1, 0.0, 0.0), "h"),
+            ((0.0, -0.1, 0.0), "s"),
+            ((0.0, 1.1, 0.0), "s"),
+            ((0.0, 0.0, -0.1), "v"),
+            ((0.0, 0.0, 1.1), "v"),
+        ],
+    )
+    def test_rejects_out_of_range_input(self, args, match):
+        with pytest.raises(ValueError, match=match):
+            color_okhsv(*args)
 
 
 @pytest.mark.parametrize(
