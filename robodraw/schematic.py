@@ -1883,8 +1883,8 @@ class Drawing:
 
     def grid(
         self,
-        color=(0, 0.7, 0.8),
-        alpha=0.3,
+        color=(0, 0.5, 0.7),
+        alpha=0.2,
         zorder=-100,
         subdivisions=(1 / 4, 2 / 4, 3 / 4),
         margin=0.5,
