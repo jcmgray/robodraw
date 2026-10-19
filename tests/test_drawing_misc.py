@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.transforms import Affine2D
 
 from robodraw import Drawing
 
@@ -205,6 +206,83 @@ def test_patch_can_use_screen_coordinates():
         d.ax.patches[0].get_path().vertices,
         expected.ax.patches[0].get_path().vertices,
     )
+
+
+@pytest.mark.parametrize("extend", [0.0, 0.5])
+@pytest.mark.parametrize("coos", [((0, 0), (2, 0)), ((1, -1), (3, 2))])
+@pytest.mark.parametrize(
+    "scale,offset,screen_offset",
+    [
+        ((1, 1), (5, -2), (0, 0)),
+        ((1.5, 0.75), (0, 0), (0, 0)),
+        ((1, 1), (0, 0), (3, 4)),
+        ((-1.5, 0.75), (5, -2), (3, 4)),
+    ],
+)
+def test_cup_transforms_apply_to_arc_and_extensions(
+    extend, coos, scale, offset, screen_offset
+):
+    reference = Drawing()
+    reference.cup(*coos, extend=extend)
+    d = Drawing(xscale=scale[0], yscale=scale[1])
+    with d.translate(*offset), d.translate_screen(*screen_offset):
+        d.cup(*coos, extend=extend)
+
+    def project(points):
+        points = [
+            d._2d_project(x + offset[0], y + offset[1]) for x, y in points
+        ]
+        return np.array(points) + screen_offset
+
+    (base_arc,) = reference.ax.patches
+    base_vertices = base_arc.get_patch_transform().transform(
+        base_arc.get_path().vertices
+    )
+    (arc,) = d.ax.patches
+    vertices = d.ax.transData.inverted().transform(
+        arc.get_transform().transform(arc.get_path().vertices)
+    )
+    np.testing.assert_allclose(vertices, project(base_vertices), atol=1e-12)
+    assert len(d.ax.lines) == len(reference.ax.lines)
+    for line, base_line in zip(d.ax.lines, reference.ax.lines):
+        np.testing.assert_allclose(
+            line.get_xydata(), project(base_line.get_xydata())
+        )
+    if extend:
+        np.testing.assert_allclose(
+            vertices[0], d.ax.lines[1].get_xydata()[-1], atol=1e-12
+        )
+        np.testing.assert_allclose(
+            vertices[-1], d.ax.lines[0].get_xydata()[-1], atol=1e-12
+        )
+
+    corners = project(
+        [
+            (x, y)
+            for x in (reference._xmin, reference._xmax)
+            for y in (reference._ymin, reference._ymax)
+        ]
+    )
+    assert (d._xmin, d._xmax, d._ymin, d._ymax) == pytest.approx(
+        (
+            corners[:, 0].min(),
+            corners[:, 0].max(),
+            corners[:, 1].min(),
+            corners[:, 1].max(),
+        )
+    )
+
+
+def test_cup_custom_transform_keeps_extensions_connected():
+    d = Drawing(xscale=1.5, yscale=0.75)
+    transform = Affine2D().rotate_deg(25) + d.ax.transData
+    with d.translate(5, -2), d.translate_screen(3, 4):
+        d.cup((0, 0), (2, 0), extend=0.5, transform=transform)
+    (arc,) = d.ax.patches
+    vertices = arc.get_transform().transform(arc.get_path().vertices)
+    for vertex, line in zip(vertices[[0, -1]], reversed(d.ax.lines)):
+        end = line.get_transform().transform(line.get_xydata()[-1])
+        np.testing.assert_allclose(vertex, end)
 
 
 def test_translate_line_arrowhead_not_doubly_translated(drawing):

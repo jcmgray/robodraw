@@ -19,6 +19,7 @@ Release notes are maintained on the [GitHub releases page](https://github.com/jc
 - Fix circular markers, stars and crosses being translated or scaled twice.
 - Fix [`Drawing.patch_around`](#Drawing.patch_around) and [`Drawing.patch_around_circles`](#Drawing.patch_around_circles) applying translation and scaling twice.
 - Make the straight sections of [`Drawing.cup`](#Drawing.cup) match the arc's color, linewidth, line style, opacity and depth order.
+- Fix cup arcs ignoring translation and scaling
 - Fix presets causing invalid matplotlib keyword errors in compound elements, or infinite recursion for arrowheads with `reverse="both"`.
 - Make [`Drawing.curve`](#Drawing.curve) shorten its endpoints before projection, matching lines, zigzags and Bezier curves. This changes endpoint positions for shortened curves drawn with projection or scaling.
 - Fix `arrowhead=False` raising an error in `line` and `line_offset`.

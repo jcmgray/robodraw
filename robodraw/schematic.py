@@ -1766,6 +1766,8 @@ class Drawing:
         **kwargs,
     ):
         """Draw a cup shape between two points."""
+        from matplotlib.transforms import Affine2D
+
         assert which == "left", "Only left cups are supported so far."
 
         style = parse_style_preset(self.presets, preset, **kwargs)
@@ -1801,12 +1803,22 @@ class Drawing:
 
         theta0 = degrees(atan2(yb - ya, xb - xa)) - 90
 
+        dx, dy, _ = self._offset
+        sx, sy = self._screen_offset
+        transform = style.pop("transform", self.ax.transData)
+        arc_transform = (
+            Affine2D()
+            .translate(dx, dy)
+            .scale(self._project_xscale, self._project_yscale)
+            .translate(sx, sy)
+        )
         arc = mpl.patches.Arc(
             c0,
             diam / flatness,
             diam,
             theta1=theta0 + 90,
             theta2=theta0 - 90,
+            transform=arc_transform + transform,
             **style,
         )
 
@@ -1817,12 +1829,14 @@ class Drawing:
                 "linestyle": arc.get_linestyle(),
                 "alpha": arc.get_alpha(),
                 "zorder": arc.get_zorder(),
+                "transform": transform,
             }
             self.line(cooa, ea, preset=(), **line_style)
             self.line(coob, eb, preset=(), **line_style)
 
         self.ax.add_patch(arc)
-        for coo in [cooa, coob, ea, eb, c0, cf]:
+        coos = self._project_coos([cooa, coob, ea, eb, c0, cf], style)
+        for coo in coos:
             self._adjust_lims(*coo)
 
     def patch_around_circles(
