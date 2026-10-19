@@ -121,6 +121,8 @@ class Drawing:
     presets : dict[str, dict], optional
         A dictionary of named style presets. When you add an element to the
         drawing, you can specify a preset name to use as default styling.
+        Presets can also set drawing options. For example, a line preset can
+        set both ``color="red"`` and ``arrowhead=True``.
     ax : matplotlib.axes.Axes
         The axes to draw on. If None, a new figure is created. If an external
         `ax` is supplied, then note that this `Drawing` instance will not
@@ -660,7 +662,8 @@ class Drawing:
         style = parse_style_preset(self.presets, preset, **kwargs)
         style.setdefault("radius", 0.1)
         style.setdefault("linewidth", 0.0)
-        self.circle(coo, **style)
+        # the style already includes the preset, so skip preset lookup here
+        self.circle(coo, preset=(), **style)
 
     def regular_polygon(self, coo, preset=None, **kwargs):
         """Draw a regular polygon at the specified coordinate.
@@ -709,13 +712,13 @@ class Drawing:
             theta = 2 * pi * (i / npoint + 1 / 4) + orientation
             rc = radius * cos(theta)
             rs = radius * sin(theta)
-            self.line((x, y), (x + rc, y + rs), **style)
+            self.line((x, y), (x + rc, y + rs), preset=(), **style)
 
     def cross(self, coo, preset=None, **kwargs):
         style = parse_style_preset(self.presets, preset, **kwargs)
         style.setdefault("npoint", 4)
         style.setdefault("orientation", pi / 4)
-        self.star(coo, **style)
+        self.star(coo, preset=(), **style)
 
     def marker(self, coo, preset=None, **kwargs):
         """Draw a 'marker' at the specified coordinate. This is a shorthand for
@@ -741,7 +744,7 @@ class Drawing:
 
         marker = style.pop("marker", "s")
         if marker in ("o", "."):
-            return self.circle((x, y), **style)
+            return self.circle((x, y), preset=(), **style)
 
         if isinstance(marker, int):
             n = marker
@@ -761,7 +764,12 @@ class Drawing:
             }[marker]
 
         self.regular_polygon(
-            (x, y), n=n, orientation=orientation, project=False, **style
+            (x, y),
+            n=n,
+            orientation=orientation,
+            preset=(),
+            project=False,
+            **style,
         )
 
     def square(self, coo, preset=None, **kwargs):
@@ -778,7 +786,9 @@ class Drawing:
                 "a square marker. Did you mean to use marker() instead?"
             )
 
-        return self.marker((x, y), marker="s", project=False, **style)
+        return self.marker(
+            (x, y), marker="s", preset=(), project=False, **style
+        )
 
     def cube(self, coo, preset=None, **kwargs):
         """Draw a cube at the specified coordinate, which must be 3D.
@@ -810,7 +820,7 @@ class Drawing:
             ((xp, ym, zp), (xp, yp, zp), (xm, yp, zp), (xm, ym, zp)),
         ]
         for face in faces:
-            self.shape(face, preset=preset, **style)
+            self.shape(face, preset=(), **style)
 
     def tetrahedron(self, coo, preset=None, **kwargs):
         """Draw a tetrahedron at the specified coordinate, which must be 3D.
@@ -843,7 +853,7 @@ class Drawing:
             (v[0], v[1], v[2]),
         ]
         for face in faces:
-            self.shape(face, preset=preset, **style)
+            self.shape(face, preset=(), **style)
 
     def octahedron(self, coo, preset=None, **kwargs):
         """Draw an octahedron at the specified coordinate, which must be 3D.
@@ -882,7 +892,7 @@ class Drawing:
             (v[1], v[5], v[2]),
         ]
         for face in faces:
-            self.shape(face, preset=preset, **style)
+            self.shape(face, preset=(), **style)
 
     def dodecahedron(self, coo, preset=None, **kwargs):
         """Draw a dodecahedron at the specified coordinate, which must be 3D.
@@ -943,7 +953,7 @@ class Drawing:
             (v[6], v[15], v[7], v[19], v[18]),
         ]
         for face in faces:
-            self.shape(face, preset=preset, **style)
+            self.shape(face, preset=(), **style)
 
     def icosahedron(self, coo, preset=None, **kwargs):
         """Draw an icosahedron at the specified coordinate, which must be 3D.
@@ -1003,7 +1013,7 @@ class Drawing:
             (v[7], v[9], v[11]),
         ]
         for face in faces:
-            self.shape(face, preset=preset, **style)
+            self.shape(face, preset=(), **style)
 
     def line(self, cooa, coob, preset=None, **kwargs):
         """Draw a line between two coordinates.
@@ -1074,7 +1084,7 @@ class Drawing:
             else:
                 arrowhead = dict(arrowhead)
             self.arrowhead(
-                cooa, coob, preset=preset, **(style | arrowhead), project=False
+                cooa, coob, preset=(), **(style | arrowhead), project=False
             )
 
         line = mpl.lines.Line2D([xa, xb], [ya, yb], **style)
@@ -1088,6 +1098,7 @@ class Drawing:
 
             # don't want to pass full style dict to text_between
             text.setdefault("zorder", style["zorder"] + 0.02)
+            text.setdefault("preset", ())
             self.text_between(cooa, coob, project=False, **text)
 
         if text_left:
@@ -1097,6 +1108,7 @@ class Drawing:
                 text_left = dict(text_left)
 
             text_left.setdefault("zorder", style["zorder"] + 0.02)
+            text_left.setdefault("preset", ())
             self.text_between(
                 cooa, coob, center=0.0, project=False, **text_left
             )
@@ -1108,6 +1120,7 @@ class Drawing:
                 text_right = dict(text_right)
 
             text_right.setdefault("zorder", style["zorder"] + 0.02)
+            text_right.setdefault("preset", ())
             self.text_between(
                 cooa, coob, center=1.0, project=False, **text_right
             )
@@ -1195,12 +1208,12 @@ class Drawing:
             self.arrowhead(
                 cooml,
                 coomr,
-                preset=preset,
+                preset=(),
                 **(style | arrowhead),
                 project=False,
             )
 
-        self.curve(curve_pts, preset=preset, project=False, **style)
+        self.curve(curve_pts, preset=(), project=False, **style)
 
         if text:
             if isinstance(text, str):
@@ -1209,6 +1222,7 @@ class Drawing:
                 text = dict(text)
             # don't want to pass full style dict to text_between
             text.setdefault("zorder", style["zorder"])
+            text.setdefault("preset", ())
             self.text_between(cooml, coomr, project=False, **text)
 
         if text_left:
@@ -1218,6 +1232,7 @@ class Drawing:
                 text_left = dict(text_left)
 
             text_left.setdefault("zorder", style["zorder"])
+            text_left.setdefault("preset", ())
             self.text_between(
                 cooml, coomr, center=0.0, project=False, **text_left
             )
@@ -1229,6 +1244,7 @@ class Drawing:
                 text_right = dict(text_right)
 
             text_right.setdefault("zorder", style["zorder"])
+            text_right.setdefault("preset", ())
             self.text_between(
                 cooml, coomr, center=1.0, project=False, **text_right
             )
@@ -1311,7 +1327,7 @@ class Drawing:
         # transform back to
         pts = [b(*pt) for pt in pts]
 
-        self.curve(pts, project=False, **style)
+        self.curve(pts, preset=(), project=False, **style)
 
     def arrowhead(self, cooa, coob, preset=None, **kwargs):
         """Draw just a arrowhead on the line between ``cooa`` and ``coob``.
@@ -1353,7 +1369,7 @@ class Drawing:
 
         reverse = style.pop("reverse")
         if reverse == "both":
-            self.arrowhead(cooa, coob, preset=preset, project=project, **style)
+            self.arrowhead(cooa, coob, preset=(), project=project, **style)
         if reverse:
             cooa, coob = coob, cooa
 
@@ -1552,7 +1568,7 @@ class Drawing:
             (xb + radius, -radius),
         ]
         points = [inverse(*coo) for coo in points]
-        self.shape(points, **style)
+        self.shape(points, preset=(), **style)
 
     def patch(self, coos, preset=None, **kwargs):
         """Draw a closed smooth patch through given coordinates.
@@ -1672,7 +1688,7 @@ class Drawing:
             hull_idx = convex_hull_2d(expanded_pts)
             boundary_pts = [expanded_pts[i] for i in hull_idx]
 
-        self.patch(boundary_pts, **style)
+        self.patch(boundary_pts, preset=(), **style)
 
     def bezier(
         self,
@@ -1879,7 +1895,7 @@ class Drawing:
         ]
 
         pcoos = [inverse(*rcoo) for rcoo in rcoos]
-        self.patch(pcoos, preset=preset, **style)
+        self.patch(pcoos, preset=(), **style)
 
     def grid(
         self,
