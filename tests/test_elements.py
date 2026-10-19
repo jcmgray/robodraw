@@ -119,6 +119,52 @@ def test_line_endpoints_and_style(drawing):
     assert ln.get_linewidth() == pytest.approx(4)
 
 
+@pytest.mark.parametrize("projection", ["orthographic", "isometric"])
+@pytest.mark.parametrize("shorten", [0.2, (0.1, 0.3), (0.0, 0.3)])
+@pytest.mark.parametrize(
+    "coos",
+    [
+        [(0, 0, 0), (0, 0, 2)],
+        [(0, 0, 0), (0, 0, 1), (1, 1, 2), (2, 1, 2)],
+    ],
+)
+def test_curve_shortens_before_projection(projection, shorten, coos):
+    d = Drawing(projection=projection, xscale=1.3, yscale=0.7, zscale=1.8)
+    original = np.array(coos, dtype=float)
+    expected = original.copy()
+    start, end = (shorten, shorten) if np.isscalar(shorten) else shorten
+    first = original[1] - original[0]
+    last = original[-2] - original[-1]
+    expected[0] += start * first / np.linalg.norm(first)
+    expected[-1] += end * last / np.linalg.norm(last)
+
+    d.curve(coos, shorten=shorten)
+
+    (curve,) = d.ax.patches
+    vertices = curve.get_path().vertices
+    assert vertices[0] == pytest.approx(d._3d_project(*expected[0]))
+    assert vertices[-1] == pytest.approx(d._3d_project(*expected[-1]))
+    assert curve.get_zorder() == pytest.approx(
+        np.mean([d._coo_to_zorder(*coo) for coo in expected])
+    )
+    np.testing.assert_array_equal(coos, original)
+
+
+@pytest.mark.parametrize("container", [list, tuple, np.asarray])
+@pytest.mark.parametrize("project", [True, False])
+def test_curve_shortening_2d_preserves_input(container, project):
+    coos = container([(0, 0), (1, 0), (1, 1)])
+    original = np.array(coos, copy=True)
+    d = Drawing()
+
+    d.curve(coos, shorten=(0.2, 0.3), project=project)
+
+    (curve,) = d.ax.patches
+    assert curve.get_path().vertices[0] == pytest.approx((0.2, 0))
+    assert curve.get_path().vertices[-1] == pytest.approx((1, 0.7))
+    np.testing.assert_array_equal(coos, original)
+
+
 def test_text_content_and_position(drawing):
     drawing.text((1.0, 2.0), "hello", color="purple", fontsize=20)
     t = drawing.ax.texts[-1]

@@ -1419,10 +1419,9 @@ class Drawing:
             The amount of smoothing to apply to the curve. 0.0 is no smoothing,
             1.0 is maximum smoothing. Default is 0.5.
         shorten : float or tuple[float, float], optional
-            Shorten the line by this *absolute* amount at each end. If a tuple,
-            the first value is the start shortening, the second the end
-            shortening. The shortening is calculated with respect to the first
-            and last segments of the curve.
+            Shorten the first and last segments by this distance, measured in
+            the supplied coordinates before projection. A tuple gives separate
+            distances for the start and end.
         preset : str, optional
             A preset style to use for the curve.
         kwargs
@@ -1445,6 +1444,15 @@ class Drawing:
         smoothing = style.pop("smoothing")
         shorten = style.pop("shorten", None)
 
+        if shorten is not None:
+            try:
+                start, end = shorten
+            except TypeError:
+                start = end = shorten
+            coos = list(coos)
+            coos[0], _ = shorten_line(coos[0], coos[1], (start, 0))
+            _, coos[-1] = shorten_line(coos[-2], coos[-1], (0, end))
+
         coos = self._project_coos(
             coos,
             style,
@@ -1453,21 +1461,6 @@ class Drawing:
             zorder_aggregate=style.pop("zorder_aggregate", "mean"),
         )
         N = len(coos)
-
-        if shorten is not None:
-            try:
-                start, end = shorten
-            except TypeError:
-                start = end = shorten
-            # shorten first segment
-            _, inverse = get_rotator_and_inverse(coos[0], coos[1])
-            ra = (start, 0.0)
-            coos[0] = inverse(*ra)
-            # shorten last segment
-            forward, inverse = get_rotator_and_inverse(coos[-2], coos[-1])
-            R = forward(*coos[-1])[0]
-            rb = (R - end, 0.0)
-            coos[-1] = inverse(*rb)
 
         if N <= 2 or smoothing == 0.0:
             path = coos
