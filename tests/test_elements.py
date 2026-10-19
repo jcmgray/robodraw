@@ -119,6 +119,56 @@ def test_line_endpoints_and_style(drawing):
     assert ln.get_linewidth() == pytest.approx(4)
 
 
+@pytest.mark.parametrize(
+    "method", ["line", "curve", "bezier", "zigzag", "text_between"]
+)
+def test_shorten_zero_length_3d_elements(method):
+    d = Drawing()
+    coo = (1.0, 2.0, 3.0)
+    shorten = 0.2
+    expected = d._3d_project(*coo)
+    if method == "curve":
+        d.curve([coo, coo], shorten=shorten)
+    elif method == "bezier":
+        d.bezier([coo] * 4, shorten=shorten)
+    elif method == "text_between":
+        d.text_between(coo, coo, "point", shorten=shorten)
+        assert d.ax.texts[0].get_position() == pytest.approx(expected)
+        return
+    else:
+        getattr(d, method)(coo, coo, shorten=shorten)
+
+    artists = [*d.ax.lines, *d.ax.patches]
+    assert artists
+    for artist in artists:
+        vertices = artist.get_path().vertices
+        np.testing.assert_allclose(
+            vertices, np.tile(expected, (len(vertices), 1))
+        )
+
+
+@pytest.mark.parametrize(
+    "arrowhead",
+    [True, {"center": 0.8, "relative": False, "reverse": "both"}],
+)
+def test_line_offset_zero_midlength_arrowhead(arrowhead):
+    d = Drawing()
+    d.line_offset(
+        (0, 0), (2, 0), 0.2, midlength=0, arrowhead=arrowhead, text="bend"
+    )
+    reference = Drawing()
+    options = {} if arrowhead is True else dict(arrowhead)
+    options["center"] = 0.5
+    reference.arrowhead((0, 0.4), (2, 0.4), **options)
+
+    assert len(d.ax.lines) == len(reference.ax.lines)
+    for actual, expected in zip(d.ax.lines, reference.ax.lines):
+        np.testing.assert_allclose(actual.get_xydata(), expected.get_xydata())
+    (curve,) = d.ax.patches
+    assert np.isfinite(curve.get_path().vertices).all()
+    assert d.ax.texts[0].get_position() == pytest.approx((1, 0.4))
+
+
 @pytest.mark.parametrize("extend", [0.0, 0.5])
 @pytest.mark.parametrize(
     "source", ["keyword", "preset", "default", "override"]

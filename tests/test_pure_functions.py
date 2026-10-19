@@ -7,6 +7,7 @@ exactly, so they get the most thorough coverage.
 import math
 import warnings
 
+import numpy as np
 import pytest
 from matplotlib.colors import to_rgba
 
@@ -353,6 +354,20 @@ def test_shorten_line_asymmetric():
     pa, pb = shorten_line((0.0, 0.0), (10.0, 0.0), (1.0, 3.0))
     assert pa == pytest.approx((1.0, 0.0))
     assert pb == pytest.approx((7.0, 0.0))
+
+
+@pytest.mark.parametrize(
+    "coo,amount",
+    [
+        ((1.0, -2.0), 0.2),
+        ([1.0, -2.0, 3.0], 0.0),
+        (np.array([1.0, -2.0, 3.0]), (0.0, 0.3)),
+    ],
+)
+def test_shorten_line_coincident_endpoints(coo, amount):
+    pa, pb = shorten_line(coo, coo, amount)
+    assert pa == pytest.approx(coo)
+    assert pb == pytest.approx(coo)
 
 
 def test_get_control_points_returns_two_points():

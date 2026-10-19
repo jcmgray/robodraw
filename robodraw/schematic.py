@@ -1202,14 +1202,21 @@ class Drawing:
             else:
                 arrowhead = dict(arrowhead)
 
-            # want to correct center for midlength
             center = arrowhead.pop("center", 0.5)
-            arrowhead["center"] = min(
-                max(0.0, 0.5 + (center - 0.5) / midlength), 1.0
-            )
+            if cooml == coomr:
+                # use the full span when the straight section has collapsed
+                arrow_a = inverse(0, offset)
+                arrow_b = inverse(R, offset)
+                arrowhead["center"] = 0.5
+            else:
+                arrow_a, arrow_b = cooml, coomr
+                # map the position on the full line onto the middle section
+                arrowhead["center"] = min(
+                    max(0.0, 0.5 + (center - 0.5) / midlength), 1.0
+                )
             self.arrowhead(
-                cooml,
-                coomr,
+                arrow_a,
+                arrow_b,
                 preset=(),
                 **(style | arrowhead),
                 project=False,
@@ -3048,6 +3055,9 @@ def get_rotator_and_inverse_3d(pa, pb):
 
 
 def shorten_line(pa, pb, amount):
+    pa, pb = tuple(pa), tuple(pb)
+    if pa == pb:
+        return pa, pb
     if len(pa) == 3:
         forward, inverse = get_rotator_and_inverse_3d(pa, pb)
         zero_tail = (0.0, 0.0)

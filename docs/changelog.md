@@ -23,4 +23,6 @@ Release notes are maintained on the [GitHub releases page](https://github.com/jc
 - Fix presets causing invalid matplotlib keyword errors in compound elements, or infinite recursion for arrowheads with `reverse="both"`.
 - Make [`Drawing.curve`](#Drawing.curve) shorten its endpoints before projection, matching lines, zigzags and Bezier curves. This changes endpoint positions for shortened curves drawn with projection or scaling.
 - Fix `arrowhead=False` raising an error in `line` and `line_offset`.
+- Allow [`Drawing.line_offset`](#Drawing.line_offset) with `midlength=0` to draw an arrowhead at the bend.
+- Keep coincident endpoints unchanged when shortening a line, avoiding division by zero in 3D.
 - Fix README image links and API documentation links.
