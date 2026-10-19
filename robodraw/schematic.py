@@ -712,7 +712,9 @@ class Drawing:
             theta = 2 * pi * (i / npoint + 1 / 4) + orientation
             rc = radius * cos(theta)
             rs = radius * sin(theta)
-            self.line((x, y), (x + rc, y + rs), preset=(), **style)
+            self.line(
+                (x, y), (x + rc, y + rs), preset=(), project=False, **style
+            )
 
     def cross(self, coo, preset=None, **kwargs):
         style = parse_style_preset(self.presets, preset, **kwargs)
@@ -744,7 +746,7 @@ class Drawing:
 
         marker = style.pop("marker", "s")
         if marker in ("o", "."):
-            return self.circle((x, y), preset=(), **style)
+            return self.circle((x, y), preset=(), project=False, **style)
 
         if isinstance(marker, int):
             n = marker

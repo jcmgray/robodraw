@@ -1,6 +1,7 @@
 """Construction variants, coordinate context managers, and file output."""
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 
 from robodraw import Drawing
@@ -90,6 +91,41 @@ def test_translate_screen_offsets_then_restores(drawing):
         drawing.circle((0, 0))
     assert drawing._screen_offset == (0, 0)
     assert tuple(drawing.ax.patches[-1].center) == pytest.approx((3.0, 4.0))
+
+
+@pytest.mark.parametrize("element", ["o", ".", "star", "cross"])
+@pytest.mark.parametrize("coo", [(1, 2), (1, 2, 3)])
+@pytest.mark.parametrize("projection", ["orthographic", "isometric"])
+def test_marker_translation_and_scaling_applied_once(element, coo, projection):
+    d = Drawing(projection=projection, xscale=1.5, yscale=0.75, zscale=1.25)
+    translated = tuple(c + offset for c, offset in zip(coo, (5, -2, 1)))
+    if len(coo) == 3:
+        center = d._3d_project(*translated)
+        zorder = d._coo_to_zorder(*translated) + 0.01
+    else:
+        center = d._2d_project(*translated)
+        zorder = 0.01
+    center = (center[0] + 3, center[1] + 4)
+    radius = 0.2
+
+    with d.translate(5, -2, 1), d.translate_screen(3, 4):
+        if element in ("o", "."):
+            d.marker(coo, marker=element, radius=radius)
+        else:
+            getattr(d, element)(coo, radius=radius)
+
+    if element in ("o", "."):
+        (circle,) = d.ax.patches
+        assert circle.center == pytest.approx(center)
+        assert circle.radius == pytest.approx(radius)
+        assert circle.get_zorder() == pytest.approx(zorder)
+    else:
+        assert len(d.ax.lines) == (9 if element == "star" else 4)
+        for line in d.ax.lines:
+            start, end = line.get_xydata()
+            assert start == pytest.approx(center)
+            assert np.linalg.norm(end - start) == pytest.approx(radius)
+            assert line.get_zorder() == pytest.approx(zorder)
 
 
 @pytest.mark.parametrize("ext", ["png", "svg"])
