@@ -1078,7 +1078,7 @@ class Drawing:
         # from here on the coordinates are already in projected screen space
         cooa, coob = (xa, ya), (xb, yb)
 
-        if arrowhead is not None:
+        if arrowhead is not None and arrowhead is not False:
             if arrowhead is True:
                 arrowhead = {}
             else:
@@ -1194,7 +1194,7 @@ class Drawing:
         coomr = inverse((1 - endlength) * R, offset)
         curve_pts = [cooa, cooml, coomm, coomr, coob]
 
-        if arrowhead is not None:
+        if arrowhead is not None and arrowhead is not False:
             if arrowhead is True:
                 arrowhead = {}
             else:

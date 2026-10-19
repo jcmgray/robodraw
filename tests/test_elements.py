@@ -119,6 +119,38 @@ def test_line_endpoints_and_style(drawing):
     assert ln.get_linewidth() == pytest.approx(4)
 
 
+@pytest.mark.parametrize("method", ["line", "line_offset"])
+@pytest.mark.parametrize("source", ["keyword", "preset", "override"])
+@pytest.mark.parametrize(
+    "arrowhead,tip_x",
+    [
+        (None, None),
+        (False, None),
+        (True, 1.0),
+        ({}, 1.0),
+        ({"center": 0.75}, 1.5),
+    ],
+)
+def test_line_arrowhead_options(method, source, arrowhead, tip_x):
+    preset_options = {"arrowhead": True if source == "override" else arrowhead}
+    d = Drawing(presets={"arrow": preset_options})
+    kwargs = {}
+    if source != "keyword":
+        kwargs["preset"] = "arrow"
+    if source != "preset":
+        kwargs["arrowhead"] = arrowhead
+    if method == "line_offset":
+        kwargs["offset"] = 0.2
+
+    getattr(d, method)((0, 0), (2, 0), **kwargs)
+
+    assert len(d.ax.lines) == (tip_x is not None) + (method == "line")
+    assert len(d.ax.patches) == (method == "line_offset")
+    if tip_x is not None:
+        expected_tip = (tip_x, 0.4 if method == "line_offset" else 0.0)
+        assert d.ax.lines[0].get_xydata()[1] == pytest.approx(expected_tip)
+
+
 @pytest.mark.parametrize("projection", ["orthographic", "isometric"])
 @pytest.mark.parametrize("shorten", [0.2, (0.1, 0.3), (0.0, 0.3)])
 @pytest.mark.parametrize(
