@@ -119,6 +119,68 @@ def test_line_endpoints_and_style(drawing):
     assert ln.get_linewidth() == pytest.approx(4)
 
 
+@pytest.mark.parametrize("extend", [0.0, 0.5])
+@pytest.mark.parametrize(
+    "source", ["keyword", "preset", "default", "override"]
+)
+@pytest.mark.parametrize(
+    "style,linestyle",
+    [
+        ({}, "-"),
+        (
+            {
+                "color": "red",
+                "linewidth": 4,
+                "linestyle": "--",
+                "alpha": 0.4,
+                "zorder": 7,
+            },
+            "--",
+        ),
+        (
+            {
+                "edgecolor": "blue",
+                "facecolor": "yellow",
+                "hatch": "//",
+                "linewidth": 3,
+                "linestyle": "-.",
+                "alpha": 0.6,
+                "zorder_delta": 0.5,
+            },
+            "-.",
+        ),
+    ],
+)
+def test_cup_extensions_match_arc_style(extend, source, style, linestyle):
+    d = Drawing(drawcolor="purple")
+    if source == "keyword":
+        kwargs = dict(style)
+    elif source == "default":
+        d.presets[None] = dict(style)
+        kwargs = {}
+    else:
+        d.presets["cup"] = dict(style)
+        kwargs = {"preset": "cup"}
+        if source == "override":
+            kwargs.update(linewidth=5, alpha=0.8)
+    original = deepcopy(d.presets)
+
+    d.cup((0, 0), (2, 0), extend=extend, **kwargs)
+
+    (arc,) = d.ax.patches
+    assert len(d.ax.lines) == (2 if extend else 0)
+    for line, x in zip(d.ax.lines, (0, 2)):
+        np.testing.assert_allclose(line.get_xydata(), [(x, 0), (x, extend)])
+        assert (
+            to_rgba(line.get_color(), line.get_alpha()) == arc.get_edgecolor()
+        )
+        assert line.get_linewidth() == arc.get_linewidth()
+        assert line.get_linestyle() == linestyle
+        assert line.get_alpha() == arc.get_alpha()
+        assert line.get_zorder() == arc.get_zorder()
+    assert d.presets == original
+
+
 @pytest.mark.parametrize("method", ["line", "line_offset"])
 @pytest.mark.parametrize("source", ["keyword", "preset", "override"])
 @pytest.mark.parametrize(

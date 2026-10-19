@@ -1811,8 +1811,15 @@ class Drawing:
         )
 
         if extend != 0.0:
-            self.line(cooa, ea)
-            self.line(coob, eb)
+            line_style = {
+                "color": arc.get_edgecolor(),
+                "linewidth": arc.get_linewidth(),
+                "linestyle": arc.get_linestyle(),
+                "alpha": arc.get_alpha(),
+                "zorder": arc.get_zorder(),
+            }
+            self.line(cooa, ea, preset=(), **line_style)
+            self.line(coob, eb, preset=(), **line_style)
 
         self.ax.add_patch(arc)
         for coo in [cooa, coob, ea, eb, c0, cf]:
