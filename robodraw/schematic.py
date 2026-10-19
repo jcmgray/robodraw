@@ -1576,6 +1576,9 @@ class Drawing:
         smoothing : float
             The smoothing factor, the higher the smoother. The default is
             0.5.
+        project : bool, optional
+            Apply projection, scaling and translation. Set to False if the
+            coordinates are already in screen space. Default is True.
         preset : str, optional
             A preset style to use for the patch.
         kwargs
@@ -1587,6 +1590,8 @@ class Drawing:
         """
         from matplotlib.path import Path
 
+        project = kwargs.pop("project", True)
+
         style = parse_style_preset(self.presets, preset, **kwargs)
         style.setdefault("linestyle", ":")
         style.setdefault("edgecolor", (0.5, 0.5, 0.5, 0.75))
@@ -1597,6 +1602,7 @@ class Drawing:
         coos = self._project_coos(
             coos,
             style,
+            project=project,
             zorder_delta=style.pop("zorder_delta", -0.01),
             # default to min so the patch appears *just*
             # behind the elements its meant to highlight
@@ -1683,7 +1689,7 @@ class Drawing:
             hull_idx = convex_hull_2d(expanded_pts)
             boundary_pts = [expanded_pts[i] for i in hull_idx]
 
-        self.patch(boundary_pts, preset=(), **style)
+        self.patch(boundary_pts, preset=(), project=False, **style)
 
     def bezier(
         self,
@@ -1890,7 +1896,7 @@ class Drawing:
         ]
 
         pcoos = [inverse(*rcoo) for rcoo in rcoos]
-        self.patch(pcoos, preset=(), **style)
+        self.patch(pcoos, preset=(), project=False, **style)
 
     def grid(
         self,

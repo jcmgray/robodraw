@@ -137,6 +137,76 @@ def test_savefig_writes_nonempty_file(tmp_path, drawing, ext):
     assert out.stat().st_size > 0
 
 
+@pytest.mark.parametrize(
+    "method,radius",
+    [
+        ("patch_around", 0.0),
+        ("patch_around", 0.2),
+        ("patch_around_circles", 0.2),
+    ],
+)
+@pytest.mark.parametrize("ndim", [2, 3])
+@pytest.mark.parametrize("projection", ["orthographic", "isometric"])
+def test_boundary_patch_transforms_applied_once(
+    method, radius, ndim, projection
+):
+    d = Drawing(projection=projection, xscale=1.5, yscale=0.75, zscale=1.25)
+    coos = [coo[:ndim] for coo in [(0, 0, 0), (2, 0, 1), (1, 1, 2)]]
+    if method == "patch_around_circles":
+        coos = coos[:2]
+    translated = [
+        tuple(c + offset for c, offset in zip(coo, (5, -2, 1))) for coo in coos
+    ]
+    project = d._3d_project if ndim == 3 else d._2d_project
+    projected = [project(*coo) for coo in translated]
+    projected = [(x + 3, y + 4) for x, y in projected]
+
+    def draw_patch(drawing, points):
+        style = {"linewidth": 2.5, "edgecolor": "red", "zorder_delta": 0.3}
+        if method == "patch_around":
+            drawing.patch_around(points, radius=radius, **style)
+        else:
+            drawing.patch_around_circles(
+                points[0], radius, points[1], radius * 1.5, **style
+            )
+
+    expected = Drawing()
+    draw_patch(expected, projected)
+    with d.translate(5, -2, 1), d.translate_screen(3, 4):
+        draw_patch(d, coos)
+
+    (patch,) = d.ax.patches
+    (reference,) = expected.ax.patches
+    np.testing.assert_allclose(
+        patch.get_path().vertices, reference.get_path().vertices
+    )
+    np.testing.assert_array_equal(
+        patch.get_path().codes, reference.get_path().codes
+    )
+    zorder = (
+        min(d._coo_to_zorder(*coo) for coo in translated) if ndim == 3 else 0
+    )
+    assert patch.get_zorder() == pytest.approx(zorder + 0.3)
+    assert patch.get_linewidth() == reference.get_linewidth()
+    assert patch.get_edgecolor() == reference.get_edgecolor()
+    assert (d._xmin, d._xmax, d._ymin, d._ymax) == pytest.approx(
+        (expected._xmin, expected._xmax, expected._ymin, expected._ymax)
+    )
+
+
+def test_patch_can_use_screen_coordinates():
+    coos = [(0, 0), (2, 0), (1, 1)]
+    expected = Drawing()
+    expected.patch(coos)
+    d = Drawing(xscale=1.5, yscale=0.75)
+    with d.translate(5, -2), d.translate_screen(3, 4):
+        d.patch(coos, project=False)
+    np.testing.assert_allclose(
+        d.ax.patches[0].get_path().vertices,
+        expected.ax.patches[0].get_path().vertices,
+    )
+
+
 def test_translate_line_arrowhead_not_doubly_translated(drawing):
     with drawing.translate(5, 0):
         drawing.line((-0.5, 0.7), (-0.5, -0.5), arrowhead={"center": 1.0})
